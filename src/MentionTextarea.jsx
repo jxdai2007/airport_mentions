@@ -74,7 +74,7 @@ function formatMention(airport) {
 }
 
 // Matches finalized mentions like @Los Angeles International (LAX)
-const MENTION_RE = /@[A-Z][A-Za-z\s.''\/\-]+\([A-Z]{3}\)/g
+const MENTION_RE = /@[A-Z][A-Za-z\s.''/\u2019-]+\([A-Z]{3}\)/g
 
 export default function MentionTextarea() {
   const [value, setValue] = useState('')
