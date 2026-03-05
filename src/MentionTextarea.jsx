@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import airports from './data/airports.curated.json'
 import './MentionTextarea.css'
 
@@ -73,11 +73,15 @@ function formatMention(airport) {
   return `@${airport.name} (${airport.iata})`
 }
 
+// Matches finalized mentions like @Los Angeles International (LAX)
+const MENTION_RE = /@[A-Z][A-Za-z\s.''\/\-]+\([A-Z]{3}\)/g
+
 export default function MentionTextarea() {
   const [value, setValue] = useState('')
   const [mentionState, setMentionState] = useState(null) // { query, atIndex }
   const [highlightIndex, setHighlightIndex] = useState(0)
   const textareaRef = useRef(null)
+  const mirrorRef = useRef(null)
   const dropdownRef = useRef(null)
 
   const suggestions = mentionState ? filterAirports(mentionState.query) : []
@@ -154,21 +158,52 @@ export default function MentionTextarea() {
     }
   }, [highlightIndex])
 
+  const highlightedText = useMemo(() => {
+    if (!value) return '\n'
+    const parts = []
+    let lastIndex = 0
+    let match
+    const re = new RegExp(MENTION_RE.source, 'g')
+    while ((match = re.exec(value)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(value.slice(lastIndex, match.index))
+      }
+      parts.push(<span key={match.index} className="mention-pill">{match[0]}</span>)
+      lastIndex = re.lastIndex
+    }
+    parts.push(value.slice(lastIndex))
+    // Trailing newline ensures mirror height matches textarea when last char is \n
+    parts.push('\n')
+    return parts
+  }, [value])
+
+  const handleScroll = useCallback(() => {
+    if (mirrorRef.current && textareaRef.current) {
+      mirrorRef.current.scrollTop = textareaRef.current.scrollTop
+    }
+  }, [])
+
   const isOpen = mentionState !== null && suggestions.length > 0
   const showNoMatches = mentionState !== null && mentionState.query.length > 0 && suggestions.length === 0
 
   return (
     <div className="mention-container">
-      <textarea
-        ref={textareaRef}
-        className="mention-textarea"
-        value={value}
-        onChange={handleInput}
-        onKeyDown={handleKeyDown}
-        onKeyUp={handleKeyUp}
-        onClick={handleClick}
-        placeholder="Start typing... use @ to mention an airport"
-      />
+      <div className="mention-wrapper">
+        <div className="mention-mirror" ref={mirrorRef} aria-hidden="true">
+          {highlightedText}
+        </div>
+        <textarea
+          ref={textareaRef}
+          className="mention-textarea"
+          value={value}
+          onChange={handleInput}
+          onKeyDown={handleKeyDown}
+          onKeyUp={handleKeyUp}
+          onClick={handleClick}
+          onScroll={handleScroll}
+          placeholder="Start typing... use @ to mention an airport"
+        />
+      </div>
       {isOpen && (
         <div className="mention-dropdown" ref={dropdownRef}>
           {suggestions.map((airport, i) => (
