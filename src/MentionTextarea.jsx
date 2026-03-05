@@ -8,6 +8,16 @@ const RECENT_KEY = 'vaya-recent-airports'
 const MAX_RECENT = 5
 const airportByIata = new Map(airports.map(a => [a.iata, a]))
 
+// Pre-compute lowercased fields to avoid per-keystroke string allocations
+const airportsWithLower = airports.map(a => ({
+  ...a,
+  _nameLower: a.name.toLowerCase(),
+  _cityLower: a.city.toLowerCase(),
+  _iataLower: a.iata.toLowerCase(),
+  _icaoLower: a.icao.toLowerCase(),
+  _countryLower: a.country.toLowerCase(),
+}))
+
 function getRecentAirports() {
   try {
     const stored = localStorage.getItem(RECENT_KEY)
@@ -64,34 +74,34 @@ function getMentionQuery(text, caretPos) {
 }
 
 function filterAirports(query) {
-  if (!query) return airports.slice(0, MAX_SUGGESTIONS)
+  if (!query) return airportsWithLower.slice(0, MAX_SUGGESTIONS)
 
   const lower = query.toLowerCase()
   const matches = []
 
-  for (const airport of airports) {
+  for (const airport of airportsWithLower) {
     if (
-      airport.name.toLowerCase().includes(lower) ||
-      airport.city.toLowerCase().includes(lower) ||
-      airport.iata.toLowerCase().includes(lower) ||
-      airport.icao.toLowerCase().includes(lower) ||
-      airport.country.toLowerCase().includes(lower)
+      airport._nameLower.includes(lower) ||
+      airport._cityLower.includes(lower) ||
+      airport._iataLower.includes(lower) ||
+      airport._icaoLower.includes(lower) ||
+      airport._countryLower.includes(lower)
     ) {
       matches.push(airport)
     }
   }
 
   matches.sort((a, b) => {
-    const aExact = a.iata.toLowerCase() === lower ? 1 : 0
-    const bExact = b.iata.toLowerCase() === lower ? 1 : 0
+    const aExact = a._iataLower === lower ? 1 : 0
+    const bExact = b._iataLower === lower ? 1 : 0
     if (aExact !== bExact) return bExact - aExact
 
-    const aIataStart = a.iata.toLowerCase().startsWith(lower) ? 1 : 0
-    const bIataStart = b.iata.toLowerCase().startsWith(lower) ? 1 : 0
+    const aIataStart = a._iataLower.startsWith(lower) ? 1 : 0
+    const bIataStart = b._iataLower.startsWith(lower) ? 1 : 0
     if (aIataStart !== bIataStart) return bIataStart - aIataStart
 
-    const aNameStart = (a.name.toLowerCase().startsWith(lower) || a.city.toLowerCase().startsWith(lower)) ? 1 : 0
-    const bNameStart = (b.name.toLowerCase().startsWith(lower) || b.city.toLowerCase().startsWith(lower)) ? 1 : 0
+    const aNameStart = (a._nameLower.startsWith(lower) || a._cityLower.startsWith(lower)) ? 1 : 0
+    const bNameStart = (b._nameLower.startsWith(lower) || b._cityLower.startsWith(lower)) ? 1 : 0
     if (aNameStart !== bNameStart) return bNameStart - aNameStart
 
     if (a.score !== b.score) return b.score - a.score
@@ -115,10 +125,13 @@ const MentionTextarea = forwardRef(function MentionTextarea(props, ref) {
   const [highlightIndex, setHighlightIndex] = useState(0)
   const [recents, setRecents] = useState(() => getRecentAirports())
   const [flashIndex, setFlashIndex] = useState(null)
+  const [clickedAirport, setClickedAirport] = useState(null)
+  const [activePillIndex, setActivePillIndex] = useState(null)
   const textareaRef = useRef(null)
   const mirrorRef = useRef(null)
   const dropdownRef = useRef(null)
   const flashTimerRef = useRef(null)
+  const activePillTimerRef = useRef(null)
 
   const mentionQuery = mentionState?.query ?? null
   const suggestions = useMemo(() => mentionQuery !== null ? filterAirports(mentionQuery) : [], [mentionQuery])
@@ -131,9 +144,11 @@ const MentionTextarea = forwardRef(function MentionTextarea(props, ref) {
   }, [showRecents, recents, suggestions])
   const combinedList = useMemo(() => [...filteredRecents, ...suggestions], [filteredRecents, suggestions])
 
+  const effectiveHighlight = combinedList.length > 0 ? Math.min(highlightIndex, combinedList.length - 1) : 0
+
   const isOpen = mentionState !== null && combinedList.length > 0
   const showNoMatches = mentionState !== null && mentionState.query.length > 0 && combinedList.length === 0
-  const highlightedAirport = isOpen ? combinedList[highlightIndex] ?? null : null
+  const highlightedAirport = isOpen ? combinedList[effectiveHighlight] ?? null : null
 
   const updateMentionState = useCallback((text, caretPos) => {
     const result = getMentionQuery(text, caretPos)
@@ -147,6 +162,7 @@ const MentionTextarea = forwardRef(function MentionTextarea(props, ref) {
     const ta = textareaRef.current
     if (!ta) return
     setValue(ta.value)
+    setClickedAirport(null)
     updateMentionState(ta.value, ta.selectionStart)
   }, [updateMentionState])
 
@@ -159,6 +175,7 @@ const MentionTextarea = forwardRef(function MentionTextarea(props, ref) {
   const handleClick = useCallback(() => {
     const ta = textareaRef.current
     if (ta) {
+      setClickedAirport(null)
       updateMentionState(ta.value, ta.selectionStart)
     }
   }, [updateMentionState])
@@ -183,6 +200,12 @@ const MentionTextarea = forwardRef(function MentionTextarea(props, ref) {
   }, [mentionState])
 
   const handleKeyDown = useCallback((e) => {
+    if (e.key === 'Escape' && clickedAirport) {
+      e.preventDefault()
+      setClickedAirport(null)
+      return
+    }
+
     if (!mentionState || combinedList.length === 0) return
 
     if (e.key === 'ArrowDown') {
@@ -193,20 +216,48 @@ const MentionTextarea = forwardRef(function MentionTextarea(props, ref) {
       setHighlightIndex(i => (i - 1 + combinedList.length) % combinedList.length)
     } else if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault()
-      insertMention(combinedList[highlightIndex])
+      insertMention(combinedList[effectiveHighlight])
     } else if (e.key === 'Escape') {
       e.preventDefault()
       setMentionState(null)
     }
-  }, [mentionState, combinedList, highlightIndex, insertMention])
+  }, [mentionState, combinedList, effectiveHighlight, insertMention, clickedAirport])
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(flashTimerRef.current)
+      clearTimeout(activePillTimerRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     if (!dropdownRef.current) return
     const items = dropdownRef.current.querySelectorAll('.mention-item')
-    if (items[highlightIndex]) {
-      items[highlightIndex].scrollIntoView({ block: 'nearest' })
+    if (items[effectiveHighlight]) {
+      items[effectiveHighlight].scrollIntoView({ block: 'nearest' })
     }
-  }, [highlightIndex])
+  }, [effectiveHighlight])
+
+  const handlePillClick = useCallback((e) => {
+    const pill = e.target.closest('.mention-pill')
+    if (!pill) return
+    e.stopPropagation()
+    const iata = pill.dataset.iata
+    const startIndex = parseInt(pill.dataset.mentionIndex, 10)
+    const mentionText = pill.textContent
+    const airport = airportByIata.get(iata)
+    if (!airport) return
+
+    const ta = textareaRef.current
+    if (ta) {
+      ta.focus()
+      ta.setSelectionRange(startIndex, startIndex + mentionText.length)
+    }
+    setClickedAirport(airport)
+    setActivePillIndex(startIndex)
+    clearTimeout(activePillTimerRef.current)
+    activePillTimerRef.current = setTimeout(() => setActivePillIndex(null), 320)
+  }, [])
 
   const highlightedText = useMemo(() => {
     if (!value) return '\n'
@@ -218,13 +269,17 @@ const MentionTextarea = forwardRef(function MentionTextarea(props, ref) {
       if (match.index > lastIndex) {
         parts.push(value.slice(lastIndex, match.index))
       }
-      parts.push(<span key={match.index} className={`mention-pill${match.index === flashIndex ? ' mention-pill-flash' : ''}`}>{match[0]}</span>)
+      const iata = match[0].slice(3, 6)
+      let cls = 'mention-pill'
+      if (match.index === flashIndex) cls += ' mention-pill-flash'
+      if (match.index === activePillIndex) cls += ' mention-pill-active'
+      parts.push(<span key={match.index} className={cls} role="button" data-mention-index={match.index} data-iata={iata}>{match[0]}</span>)
       lastIndex = re.lastIndex
     }
     parts.push(value.slice(lastIndex))
     parts.push('\n')
     return parts
-  }, [value, flashIndex])
+  }, [value, flashIndex, activePillIndex])
 
   const handleScroll = useCallback(() => {
     if (mirrorRef.current && textareaRef.current) {
@@ -244,7 +299,7 @@ const MentionTextarea = forwardRef(function MentionTextarea(props, ref) {
   return (
     <div className="mention-container">
       <div className="mention-wrapper">
-        <div className="mention-mirror" ref={mirrorRef} aria-hidden="true">
+        <div className="mention-mirror" ref={mirrorRef} aria-hidden="true" onClick={handlePillClick}>
           {highlightedText}
         </div>
         <textarea
@@ -271,7 +326,7 @@ const MentionTextarea = forwardRef(function MentionTextarea(props, ref) {
                   <div className="mention-section-header">Results</div>
                 )}
                 <div
-                  className={`mention-item${idx === highlightIndex ? ' highlighted' : ''}`}
+                  className={`mention-item${idx === effectiveHighlight ? ' highlighted' : ''}`}
                   onMouseDown={(e) => {
                     e.preventDefault()
                     insertMention(airport)
@@ -292,6 +347,11 @@ const MentionTextarea = forwardRef(function MentionTextarea(props, ref) {
             ))}
           </div>
           <AirportPreviewPanel airport={highlightedAirport} />
+        </div>
+      )}
+      {!isOpen && clickedAirport && (
+        <div className="mention-dropdown-wrapper">
+          <AirportPreviewPanel airport={clickedAirport} />
         </div>
       )}
       {showNoMatches && (

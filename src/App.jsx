@@ -3,14 +3,16 @@ import MentionTextarea from './MentionTextarea'
 import IntroOverlay from './IntroOverlay'
 import './App.css'
 
+const INTRO_SEEN_KEY = 'vaya-intro-seen'
+
 function App() {
   const textareaRef = useRef(null)
   const [showIntro, setShowIntro] = useState(
-    () => !sessionStorage.getItem('vaya-intro-seen')
+    () => !sessionStorage.getItem(INTRO_SEEN_KEY)
   )
 
   const handleIntroDone = useCallback(() => {
-    sessionStorage.setItem('vaya-intro-seen', '1')
+    sessionStorage.setItem(INTRO_SEEN_KEY, '1')
     setShowIntro(false)
     // Focus textarea after overlay unmounts
     requestAnimationFrame(() => {

@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import worldMapUrl from './assets/Simplified_World_Map.svg'
 import './AirportPreviewPanel.css'
 
@@ -7,7 +8,7 @@ function formatCoords(lat, lon) {
   return `${Math.abs(lat).toFixed(4)}\u00B0 ${latDir}, ${Math.abs(lon).toFixed(4)}\u00B0 ${lonDir}`
 }
 
-export default function AirportPreviewPanel({ airport }) {
+export default memo(function AirportPreviewPanel({ airport }) {
   if (!airport) return null
 
   // Calibrated to Simplified_World_Map.svg (viewBox 0 0 1016.371 514.609)
@@ -18,7 +19,7 @@ export default function AirportPreviewPanel({ airport }) {
   const y = Math.min(1, Math.max(0, svgY / 514.609))
 
   return (
-    <div className="preview-panel" key={airport.iata}>
+    <div className="preview-panel">
       {/* Header */}
       <div className="preview-header">
         <span className="preview-airplane-icon" aria-hidden="true">{'\u2708'}</span>
@@ -60,4 +61,4 @@ export default function AirportPreviewPanel({ airport }) {
       </div>
     </div>
   )
-}
+})
