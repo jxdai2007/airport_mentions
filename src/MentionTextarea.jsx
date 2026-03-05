@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import airports from './data/airports.json'
+import airports from './data/airports.curated.json'
 import './MentionTextarea.css'
 
 const MAX_SUGGESTIONS = 20
@@ -34,10 +34,9 @@ function filterAirports(query) {
   if (!query) return airports.slice(0, MAX_SUGGESTIONS)
 
   const lower = query.toLowerCase()
-  const results = []
+  const matches = []
 
   for (const airport of airports) {
-    if (results.length >= MAX_SUGGESTIONS) break
     if (
       airport.name.toLowerCase().includes(lower) ||
       airport.city.toLowerCase().includes(lower) ||
@@ -45,11 +44,29 @@ function filterAirports(query) {
       airport.icao.toLowerCase().includes(lower) ||
       airport.country.toLowerCase().includes(lower)
     ) {
-      results.push(airport)
+      matches.push(airport)
     }
   }
 
-  return results
+  matches.sort((a, b) => {
+    const aExact = a.iata.toLowerCase() === lower ? 1 : 0
+    const bExact = b.iata.toLowerCase() === lower ? 1 : 0
+    if (aExact !== bExact) return bExact - aExact
+
+    const aIataStart = a.iata.toLowerCase().startsWith(lower) ? 1 : 0
+    const bIataStart = b.iata.toLowerCase().startsWith(lower) ? 1 : 0
+    if (aIataStart !== bIataStart) return bIataStart - aIataStart
+
+    const aNameStart = (a.name.toLowerCase().startsWith(lower) || a.city.toLowerCase().startsWith(lower)) ? 1 : 0
+    const bNameStart = (b.name.toLowerCase().startsWith(lower) || b.city.toLowerCase().startsWith(lower)) ? 1 : 0
+    if (aNameStart !== bNameStart) return bNameStart - aNameStart
+
+    if (a.score !== b.score) return b.score - a.score
+
+    return a.name.localeCompare(b.name)
+  })
+
+  return matches.slice(0, MAX_SUGGESTIONS)
 }
 
 function formatMention(airport) {
@@ -100,22 +117,15 @@ export default function MentionTextarea() {
     const { atIndex } = mentionState
     const ta = textareaRef.current
     const caretPos = ta.selectionStart
-    const mention = formatMention(airport)
+    const mention = formatMention(airport) + ' '
 
-    const before = value.slice(0, atIndex)
-    const after = value.slice(caretPos)
-    const newValue = before + mention + ' ' + after
-    const newCaret = before.length + mention.length + 1
-
-    setValue(newValue)
+    // Use native DOM API so the edit is recorded in the browser undo stack
+    ta.focus()
+    ta.setRangeText(mention, atIndex, caretPos, 'end')
+    // Dispatch input event so React's onChange picks up the new value
+    ta.dispatchEvent(new Event('input', { bubbles: true }))
     setMentionState(null)
-
-    // Restore caret position after React re-render
-    requestAnimationFrame(() => {
-      ta.focus()
-      ta.setSelectionRange(newCaret, newCaret)
-    })
-  }, [mentionState, value])
+  }, [mentionState])
 
   const handleKeyDown = useCallback((e) => {
     if (!mentionState || suggestions.length === 0) return
