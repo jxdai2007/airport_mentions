@@ -1,34 +1,62 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import React, { useState, useRef, useCallback, useEffect, useMemo, forwardRef, useImperativeHandle } from 'react'
 import airports from './data/airports.curated.json'
 import './MentionTextarea.css'
 
 const MAX_SUGGESTIONS = 20
+const RECENT_KEY = 'vaya-recent-airports'
+const MAX_RECENT = 5
+const airportByIata = new Map(airports.map(a => [a.iata, a]))
+
+function getRecentAirports() {
+  try {
+    const stored = localStorage.getItem(RECENT_KEY)
+    if (!stored) return []
+    return JSON.parse(stored)
+      .map(code => airportByIata.get(code))
+      .filter(Boolean)
+  } catch { return [] }
+}
+
+function saveRecentAirport(iata) {
+  try {
+    const stored = localStorage.getItem(RECENT_KEY)
+    let codes = stored ? JSON.parse(stored) : []
+    codes = codes.filter(c => c !== iata)
+    codes.unshift(iata)
+    codes = codes.slice(0, MAX_RECENT)
+    localStorage.setItem(RECENT_KEY, JSON.stringify(codes))
+  } catch { /* ignore */ }
+}
+
+function highlightMatch(text, query) {
+  if (!query) return text
+  const lower = text.toLowerCase()
+  const idx = lower.indexOf(query.toLowerCase())
+  if (idx === -1) return text
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="mention-match">{text.slice(idx, idx + query.length)}</mark>
+      {text.slice(idx + query.length)}
+    </>
+  )
+}
 
 function getMentionQuery(text, caretPos) {
-  // Look backwards from caret for the most recent unescaped @
   const before = text.slice(0, caretPos)
-
-  // Find the last @ in the text before caret
   const atIndex = before.lastIndexOf('@')
   if (atIndex === -1) return null
 
-  // @ must be at start of text or preceded by whitespace/punctuation
   if (atIndex > 0) {
     const charBefore = before[atIndex - 1]
     if (!/[\s\n\r,.;:!?()[\]{}]/.test(charBefore)) return null
   }
 
-  // Skip if this @ is the start of an already-completed mention
   const afterAt = text.slice(atIndex)
   if (MENTION_RE_ANCHOR.test(afterAt)) return null
 
-  // Extract query: text between @ and caret
   const query = before.slice(atIndex + 1)
-
-  // Cancel if there's a space or newline in the query (mention terminated)
   if (/[\n\r]/.test(query)) return null
-  // Allow spaces within the query for multi-word airport names
-  // But cancel if the query is too long (likely not a mention)
   if (query.length > 50) return null
 
   return { query, atIndex }
@@ -74,23 +102,36 @@ function filterAirports(query) {
 }
 
 function formatMention(airport) {
-  return `@${airport.name} (${airport.iata})`
+  return `@✈ ${airport.iata} — ${airport.name} (${airport.city}, ${airport.country})`
 }
 
-// Matches finalized mentions like @Los Angeles International (LAX)
-const MENTION_RE = /@\p{Lu}[\p{L}\s.''/\u2019-]+\([A-Z]{3}\)/gu
-// Anchored version to test if text starting at @ is a completed mention
-const MENTION_RE_ANCHOR = /^@\p{Lu}[\p{L}\s.''/\u2019-]+\([A-Z]{3}\)/u
+const MENTION_PATTERN = String.raw`@✈ [A-Z]{3} — [\p{L}\s.''/\u2019-]+\([\p{L}\s,.''/\u2019-]+\)`
+const MENTION_RE_ANCHOR = new RegExp('^' + MENTION_PATTERN, 'u')
 
-export default function MentionTextarea() {
+const MentionTextarea = forwardRef(function MentionTextarea(props, ref) {
   const [value, setValue] = useState('')
-  const [mentionState, setMentionState] = useState(null) // { query, atIndex }
+  const [mentionState, setMentionState] = useState(null)
   const [highlightIndex, setHighlightIndex] = useState(0)
+  const [recents, setRecents] = useState(() => getRecentAirports())
+  const [flashIndex, setFlashIndex] = useState(null)
   const textareaRef = useRef(null)
   const mirrorRef = useRef(null)
   const dropdownRef = useRef(null)
+  const flashTimerRef = useRef(null)
 
-  const suggestions = mentionState ? filterAirports(mentionState.query) : []
+  const mentionQuery = mentionState?.query ?? null
+  const suggestions = useMemo(() => mentionQuery !== null ? filterAirports(mentionQuery) : [], [mentionQuery])
+
+  const showRecents = !!(mentionState && mentionQuery !== null && mentionQuery.length <= 2)
+  const filteredRecents = useMemo(() => {
+    if (!showRecents) return []
+    const suggestionIatas = new Set(suggestions.map(s => s.iata))
+    return recents.filter(r => !suggestionIatas.has(r.iata))
+  }, [showRecents, recents, suggestions])
+  const combinedList = useMemo(() => [...filteredRecents, ...suggestions], [filteredRecents, suggestions])
+
+  const isOpen = mentionState !== null && combinedList.length > 0
+  const showNoMatches = mentionState !== null && mentionState.query.length > 0 && combinedList.length === 0
 
   const updateMentionState = useCallback((text, caretPos) => {
     const result = getMentionQuery(text, caretPos)
@@ -108,7 +149,6 @@ export default function MentionTextarea() {
   }, [updateMentionState])
 
   const handleKeyUp = useCallback((e) => {
-    // Update mention state on caret movement keys
     if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
       updateMentionState(e.target.value, e.target.selectionStart)
     }
@@ -129,38 +169,40 @@ export default function MentionTextarea() {
     const caretPos = ta.selectionStart
     const mention = formatMention(airport) + ' '
 
-    // Use native DOM API so the edit is recorded in the browser undo stack
     ta.focus()
-    ta.setRangeText(mention, atIndex, caretPos, 'end')
-    // Sync React state from the DOM value
-    setValue(ta.value)
+    ta.setSelectionRange(atIndex, caretPos)
+    document.execCommand('insertText', false, mention)
+    saveRecentAirport(airport.iata)
+    setRecents(prev => [airport, ...prev.filter(r => r.iata !== airport.iata)].slice(0, MAX_RECENT))
+    setFlashIndex(atIndex)
+    clearTimeout(flashTimerRef.current)
+    flashTimerRef.current = setTimeout(() => setFlashIndex(null), 240)
     setMentionState(null)
   }, [mentionState])
 
   const handleKeyDown = useCallback((e) => {
-    if (!mentionState || suggestions.length === 0) return
+    if (!mentionState || combinedList.length === 0) return
 
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setHighlightIndex(i => (i + 1) % suggestions.length)
+      setHighlightIndex(i => (i + 1) % combinedList.length)
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
-      setHighlightIndex(i => (i - 1 + suggestions.length) % suggestions.length)
+      setHighlightIndex(i => (i - 1 + combinedList.length) % combinedList.length)
     } else if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault()
-      insertMention(suggestions[highlightIndex])
+      insertMention(combinedList[highlightIndex])
     } else if (e.key === 'Escape') {
       e.preventDefault()
       setMentionState(null)
     }
-  }, [mentionState, suggestions, highlightIndex, insertMention])
+  }, [mentionState, combinedList, highlightIndex, insertMention])
 
-  // Scroll highlighted item into view
   useEffect(() => {
     if (!dropdownRef.current) return
-    const item = dropdownRef.current.children[highlightIndex]
-    if (item) {
-      item.scrollIntoView({ block: 'nearest' })
+    const items = dropdownRef.current.querySelectorAll('.mention-item')
+    if (items[highlightIndex]) {
+      items[highlightIndex].scrollIntoView({ block: 'nearest' })
     }
   }, [highlightIndex])
 
@@ -169,19 +211,18 @@ export default function MentionTextarea() {
     const parts = []
     let lastIndex = 0
     let match
-    const re = new RegExp(MENTION_RE.source, 'gu')
+    const re = new RegExp(MENTION_PATTERN, 'gu')
     while ((match = re.exec(value)) !== null) {
       if (match.index > lastIndex) {
         parts.push(value.slice(lastIndex, match.index))
       }
-      parts.push(<span key={match.index} className="mention-pill">{match[0]}</span>)
+      parts.push(<span key={match.index} className={`mention-pill${match.index === flashIndex ? ' mention-pill-flash' : ''}`}>{match[0]}</span>)
       lastIndex = re.lastIndex
     }
     parts.push(value.slice(lastIndex))
-    // Trailing newline ensures mirror height matches textarea when last char is \n
     parts.push('\n')
     return parts
-  }, [value])
+  }, [value, flashIndex])
 
   const handleScroll = useCallback(() => {
     if (mirrorRef.current && textareaRef.current) {
@@ -189,8 +230,14 @@ export default function MentionTextarea() {
     }
   }, [])
 
-  const isOpen = mentionState !== null && suggestions.length > 0
-  const showNoMatches = mentionState !== null && mentionState.query.length > 0 && suggestions.length === 0
+  useImperativeHandle(ref, () => ({
+    insertText(text) {
+      const ta = textareaRef.current
+      if (!ta) return
+      ta.focus()
+      document.execCommand('insertText', false, text)
+    }
+  }))
 
   return (
     <div className="mention-container">
@@ -212,29 +259,55 @@ export default function MentionTextarea() {
       </div>
       {isOpen && (
         <div className="mention-dropdown" ref={dropdownRef}>
-          {suggestions.map((airport, i) => (
-            <div
-              key={airport.iata}
-              className={`mention-item${i === highlightIndex ? ' highlighted' : ''}`}
-              onMouseDown={(e) => {
-                e.preventDefault() // Prevent textarea blur
-                insertMention(airport)
-              }}
-              onMouseEnter={() => setHighlightIndex(i)}
-            >
-              <span className="mention-item-name">{airport.name}</span>
-              <span className="mention-item-detail">
-                {airport.iata} — {airport.city}, {airport.country}
-              </span>
-            </div>
+          {filteredRecents.length > 0 && (
+            <div className="mention-section-header">Recent</div>
+          )}
+          {combinedList.map((airport, idx) => (
+            <React.Fragment key={idx < filteredRecents.length ? `recent-${airport.iata}` : airport.iata}>
+              {idx === filteredRecents.length && filteredRecents.length > 0 && suggestions.length > 0 && (
+                <div className="mention-section-header">Results</div>
+              )}
+              <div
+                className={`mention-item${idx === highlightIndex ? ' highlighted' : ''}`}
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  insertMention(airport)
+                }}
+                onMouseEnter={() => setHighlightIndex(idx)}
+              >
+                <div className="mention-item-row">
+                  <div className="mention-item-info">
+                    <span className="mention-item-name">{highlightMatch(airport.name, mentionQuery)}</span>
+                    <span className="mention-item-detail">
+                      {highlightMatch(airport.city, mentionQuery)}, {airport.country}
+                    </span>
+                  </div>
+                  <span className="mention-iata-badge">{airport.iata}</span>
+                </div>
+              </div>
+            </React.Fragment>
           ))}
         </div>
       )}
       {showNoMatches && (
         <div className="mention-dropdown">
-          <div className="mention-no-matches">No matching airports found</div>
+          <div className="mention-no-matches">
+            <div className="mention-no-matches-icon" aria-hidden="true">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="7" />
+                <line x1="16.5" y1="16.5" x2="21" y2="21" />
+                <line x1="8" y1="11" x2="14" y2="11" />
+              </svg>
+            </div>
+            <div className="mention-no-matches-title">No airports found</div>
+            <div className="mention-no-matches-subtitle">
+              Try a different city name or IATA code
+            </div>
+          </div>
         </div>
       )}
     </div>
   )
-}
+})
+
+export default MentionTextarea

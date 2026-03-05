@@ -12,10 +12,12 @@
   --color-border: #E5E7EB;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.06);
   --radius-lg: 16px;
   --radius-xl: 20px;
   --font-stack: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto,
     Helvetica, Arial, sans-serif;
+  --dropdown-duration: 180ms;
 }
 
 /* ============================================
@@ -34,4 +36,111 @@ body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================
+   Layered Background Treatment
+   ============================================ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(46, 211, 166, 0.07) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 50% at 80% 80%, rgba(251, 191, 114, 0.05) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 40% at 50% 50%, rgba(46, 211, 166, 0.03) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+/* Subtle noise grain overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+  pointer-events: none;
+}
+
+/* ============================================
+   Floating Gradient Blobs
+   ============================================ */
+.bg-blobs {
+  position: fixed;
+  inset: 0;
+  z-index: -3;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.bg-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.12;
+  will-change: transform;
+}
+
+.bg-blob--1 {
+  width: 400px;
+  height: 400px;
+  background: var(--color-primary);
+  top: -10%;
+  left: -5%;
+  animation: blob-drift-1 25s ease-in-out infinite alternate;
+}
+
+.bg-blob--2 {
+  width: 350px;
+  height: 350px;
+  background: #FBBF72;
+  bottom: -8%;
+  right: -5%;
+  animation: blob-drift-2 30s ease-in-out infinite alternate;
+}
+
+.bg-blob--3 {
+  width: 280px;
+  height: 280px;
+  background: #93C5FD;
+  top: 50%;
+  left: 60%;
+  opacity: 0.08;
+  animation: blob-drift-3 35s ease-in-out infinite alternate;
+}
+
+@keyframes blob-drift-1 {
+  0%   { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(60px, 40px) scale(1.1); }
+}
+
+@keyframes blob-drift-2 {
+  0%   { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(-50px, -30px) scale(1.08); }
+}
+
+@keyframes blob-drift-3 {
+  0%   { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(-40px, 20px) scale(0.95); }
+}
+
+/* ============================================
+   Reduced Motion
+   ============================================ */
+@media (prefers-reduced-motion: reduce) {
+  .bg-blob {
+    animation: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
