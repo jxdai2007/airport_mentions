@@ -1,3 +1,26 @@
+/* ============================================
+   Design Tokens — Vaya Brand
+   ============================================ */
+:root {
+  --color-primary: #2ED3A6;
+  --color-primary-hover: #26b891;
+  --color-primary-light: #E6FAF3;
+  --color-bg: #F7F8FA;
+  --color-surface: #FFFFFF;
+  --color-text: #101114;
+  --color-text-secondary: #6B7280;
+  --color-border: #E5E7EB;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.06);
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --font-stack: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto,
+    Helvetica, Arial, sans-serif;
+}
+
+/* ============================================
+   Global Reset
+   ============================================ */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -5,8 +28,10 @@
 }
 
 body {
-  font-family: system-ui, -apple-system, sans-serif;
-  background: #fafafa;
-  color: #222;
+  font-family: var(--font-stack);
+  background: var(--color-bg);
+  color: var(--color-text);
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }

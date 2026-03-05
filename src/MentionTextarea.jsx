@@ -56,10 +56,6 @@ function formatMention(airport) {
   return `@${airport.name} (${airport.iata})`
 }
 
-function formatDisplay(airport) {
-  return `${airport.name} — ${airport.iata} — ${airport.city}, ${airport.country}`
-}
-
 export default function MentionTextarea() {
   const [value, setValue] = useState('')
   const [mentionState, setMentionState] = useState(null) // { query, atIndex }
@@ -79,8 +75,9 @@ export default function MentionTextarea() {
 
   const handleInput = useCallback((e) => {
     const newValue = e.target.value
+    const caretPos = e.target.selectionStart
     setValue(newValue)
-    updateMentionState(newValue, e.target.selectionStart)
+    updateMentionState(newValue, caretPos)
   }, [updateMentionState])
 
   const handleKeyUp = useCallback((e) => {
@@ -148,6 +145,7 @@ export default function MentionTextarea() {
   }, [highlightIndex])
 
   const isOpen = mentionState !== null && suggestions.length > 0
+  const showNoMatches = mentionState !== null && mentionState.query.length > 0 && suggestions.length === 0
 
   return (
     <div className="mention-container">
@@ -160,7 +158,6 @@ export default function MentionTextarea() {
         onKeyUp={handleKeyUp}
         onClick={handleClick}
         placeholder="Start typing... use @ to mention an airport"
-        rows={6}
       />
       {isOpen && (
         <div className="mention-dropdown" ref={dropdownRef}>
@@ -180,6 +177,11 @@ export default function MentionTextarea() {
               </span>
             </div>
           ))}
+        </div>
+      )}
+      {showNoMatches && (
+        <div className="mention-dropdown">
+          <div className="mention-no-matches">No matching airports found</div>
         </div>
       )}
     </div>

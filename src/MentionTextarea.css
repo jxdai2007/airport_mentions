@@ -2,55 +2,90 @@
   position: relative;
 }
 
+/* — Textarea card — */
 .mention-textarea {
   width: 100%;
-  padding: 12px;
-  font-size: 16px;
-  font-family: inherit;
-  border: 2px solid #ddd;
-  border-radius: 8px;
+  min-height: 180px;
+  padding: 16px 20px;
+  font-size: 1rem;
+  font-family: var(--font-stack);
+  line-height: 1.6;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
   resize: vertical;
   outline: none;
-  line-height: 1.5;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mention-textarea::placeholder {
+  color: var(--color-text-secondary);
 }
 
 .mention-textarea:focus {
-  border-color: #4a90d9;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(46, 211, 166, 0.15), var(--shadow-sm);
 }
 
+/* — Dropdown card — */
 .mention-dropdown {
   position: absolute;
   left: 0;
   right: 0;
   top: 100%;
-  margin-top: 4px;
-  background: #fff;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  max-height: 300px;
+  margin-top: 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  max-height: 320px;
   overflow-y: auto;
   z-index: 100;
 }
 
+/* — Dropdown items — */
 .mention-item {
-  padding: 8px 12px;
+  padding: 12px 16px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  transition: background-color 0.1s ease;
+}
+
+.mention-item:first-child {
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.mention-item:last-child {
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.mention-item:hover {
+  background: var(--color-primary-light);
 }
 
 .mention-item.highlighted {
-  background: #e8f0fe;
+  background: var(--color-primary-light);
 }
 
 .mention-item-name {
-  font-weight: 500;
-  font-size: 14px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--color-text);
 }
 
 .mention-item-detail {
-  font-size: 12px;
-  color: #888;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+}
+
+/* — Empty state — */
+.mention-no-matches {
+  padding: 20px 16px;
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
 }
