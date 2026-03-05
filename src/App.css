@@ -1,0 +1,23 @@
+.app {
+  max-width: 700px;
+  margin: 40px auto;
+  padding: 20px;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.app h1 {
+  font-size: 1.8rem;
+  margin-bottom: 4px;
+}
+
+.app p {
+  color: #666;
+  margin-bottom: 20px;
+}
+
+.app code {
+  background: #f0f0f0;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
