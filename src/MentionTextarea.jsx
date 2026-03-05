@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo, forwardRef, useImperativeHandle } from 'react'
 import airports from './data/airports.curated.json'
+import AirportPreviewPanel from './AirportPreviewPanel'
 import './MentionTextarea.css'
 
 const MAX_SUGGESTIONS = 20
@@ -132,6 +133,7 @@ const MentionTextarea = forwardRef(function MentionTextarea(props, ref) {
 
   const isOpen = mentionState !== null && combinedList.length > 0
   const showNoMatches = mentionState !== null && mentionState.query.length > 0 && combinedList.length === 0
+  const highlightedAirport = isOpen ? combinedList[highlightIndex] ?? null : null
 
   const updateMentionState = useCallback((text, caretPos) => {
     const result = getMentionQuery(text, caretPos)
@@ -258,50 +260,55 @@ const MentionTextarea = forwardRef(function MentionTextarea(props, ref) {
         />
       </div>
       {isOpen && (
-        <div className="mention-dropdown" ref={dropdownRef}>
-          {filteredRecents.length > 0 && (
-            <div className="mention-section-header">Recent</div>
-          )}
-          {combinedList.map((airport, idx) => (
-            <React.Fragment key={idx < filteredRecents.length ? `recent-${airport.iata}` : airport.iata}>
-              {idx === filteredRecents.length && filteredRecents.length > 0 && suggestions.length > 0 && (
-                <div className="mention-section-header">Results</div>
-              )}
-              <div
-                className={`mention-item${idx === highlightIndex ? ' highlighted' : ''}`}
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  insertMention(airport)
-                }}
-                onMouseEnter={() => setHighlightIndex(idx)}
-              >
-                <div className="mention-item-row">
-                  <div className="mention-item-info">
-                    <span className="mention-item-name">{highlightMatch(airport.name, mentionQuery)}</span>
-                    <span className="mention-item-detail">
-                      {highlightMatch(airport.city, mentionQuery)}, {airport.country}
-                    </span>
+        <div className="mention-dropdown-wrapper">
+          <div className="mention-dropdown" ref={dropdownRef}>
+            {filteredRecents.length > 0 && (
+              <div className="mention-section-header">Recent</div>
+            )}
+            {combinedList.map((airport, idx) => (
+              <React.Fragment key={idx < filteredRecents.length ? `recent-${airport.iata}` : airport.iata}>
+                {idx === filteredRecents.length && filteredRecents.length > 0 && suggestions.length > 0 && (
+                  <div className="mention-section-header">Results</div>
+                )}
+                <div
+                  className={`mention-item${idx === highlightIndex ? ' highlighted' : ''}`}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    insertMention(airport)
+                  }}
+                  onMouseEnter={() => setHighlightIndex(idx)}
+                >
+                  <div className="mention-item-row">
+                    <div className="mention-item-info">
+                      <span className="mention-item-name">{highlightMatch(airport.name, mentionQuery)}</span>
+                      <span className="mention-item-detail">
+                        {highlightMatch(airport.city, mentionQuery)}, {airport.country}
+                      </span>
+                    </div>
+                    <span className="mention-iata-badge">{airport.iata}</span>
                   </div>
-                  <span className="mention-iata-badge">{airport.iata}</span>
                 </div>
-              </div>
-            </React.Fragment>
-          ))}
+              </React.Fragment>
+            ))}
+          </div>
+          <AirportPreviewPanel airport={highlightedAirport} />
         </div>
       )}
       {showNoMatches && (
-        <div className="mention-dropdown">
-          <div className="mention-no-matches">
-            <div className="mention-no-matches-icon" aria-hidden="true">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="7" />
-                <line x1="16.5" y1="16.5" x2="21" y2="21" />
-                <line x1="8" y1="11" x2="14" y2="11" />
-              </svg>
-            </div>
-            <div className="mention-no-matches-title">No airports found</div>
-            <div className="mention-no-matches-subtitle">
-              Try a different city name or IATA code
+        <div className="mention-dropdown-wrapper">
+          <div className="mention-dropdown">
+            <div className="mention-no-matches">
+              <div className="mention-no-matches-icon" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="7" />
+                  <line x1="16.5" y1="16.5" x2="21" y2="21" />
+                  <line x1="8" y1="11" x2="14" y2="11" />
+                </svg>
+              </div>
+              <div className="mention-no-matches-title">No airports found</div>
+              <div className="mention-no-matches-subtitle">
+                Try a different city name or IATA code
+              </div>
             </div>
           </div>
         </div>

@@ -91,21 +91,33 @@
 }
 
 /* ============================================
+   Dropdown wrapper (flex: dropdown + preview)
+   ============================================ */
+.mention-dropdown-wrapper {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
+  z-index: 100;
+  width: 100%;
+}
+
+/* ============================================
    Dropdown — animated open/close
    ============================================ */
 .mention-dropdown {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 100%;
-  margin-top: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   max-height: 320px;
   overflow-y: auto;
-  z-index: 100;
 
   animation: dropdown-enter var(--dropdown-duration) cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -282,4 +294,14 @@
   font-size: 0.8rem;
   color: var(--color-text-secondary);
   line-height: 1.4;
+}
+
+/* ============================================
+   Responsive: stack dropdown + preview
+   ============================================ */
+@media (max-width: 860px) {
+  .mention-dropdown-wrapper {
+    flex-direction: column;
+    right: 0;
+  }
 }

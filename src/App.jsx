@@ -1,9 +1,22 @@
-import { useRef } from 'react'
+import { useRef, useState, useCallback } from 'react'
 import MentionTextarea from './MentionTextarea'
+import IntroOverlay from './IntroOverlay'
 import './App.css'
 
 function App() {
   const textareaRef = useRef(null)
+  const [showIntro, setShowIntro] = useState(
+    () => !sessionStorage.getItem('vaya-intro-seen')
+  )
+
+  const handleIntroDone = useCallback(() => {
+    sessionStorage.setItem('vaya-intro-seen', '1')
+    setShowIntro(false)
+    // Focus textarea after overlay unmounts
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus?.()
+    })
+  }, [])
 
   const handleChipClick = (text) => {
     textareaRef.current?.insertText(text)
@@ -11,6 +24,7 @@ function App() {
 
   return (
     <>
+      {showIntro && <IntroOverlay onDone={handleIntroDone} />}
       <div className="bg-blobs" aria-hidden="true">
         <div className="bg-blob bg-blob--1" />
         <div className="bg-blob bg-blob--2" />
