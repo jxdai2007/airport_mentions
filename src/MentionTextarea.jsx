@@ -18,6 +18,10 @@ function getMentionQuery(text, caretPos) {
     if (!/[\s\n\r,.;:!?()[\]{}]/.test(charBefore)) return null
   }
 
+  // Skip if this @ is the start of an already-completed mention
+  const afterAt = text.slice(atIndex)
+  if (MENTION_RE_ANCHOR.test(afterAt)) return null
+
   // Extract query: text between @ and caret
   const query = before.slice(atIndex + 1)
 
@@ -75,6 +79,8 @@ function formatMention(airport) {
 
 // Matches finalized mentions like @Los Angeles International (LAX)
 const MENTION_RE = /@[A-Z][A-Za-z\s.''/\u2019-]+\([A-Z]{3}\)/g
+// Anchored version to test if text starting at @ is a completed mention
+const MENTION_RE_ANCHOR = /^@[A-Z][A-Za-z\s.''/\u2019-]+\([A-Z]{3}\)/
 
 export default function MentionTextarea() {
   const [value, setValue] = useState('')
@@ -94,19 +100,19 @@ export default function MentionTextarea() {
     }
   }, [])
 
-  const handleInput = useCallback((e) => {
-    const newValue = e.target.value
-    const caretPos = e.target.selectionStart
-    setValue(newValue)
-    updateMentionState(newValue, caretPos)
+  const syncFromDOM = useCallback(() => {
+    const ta = textareaRef.current
+    if (!ta) return
+    setValue(ta.value)
+    updateMentionState(ta.value, ta.selectionStart)
   }, [updateMentionState])
 
   const handleKeyUp = useCallback((e) => {
     // Update mention state on caret movement keys
     if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
-      updateMentionState(value, e.target.selectionStart)
+      updateMentionState(e.target.value, e.target.selectionStart)
     }
-  }, [value, updateMentionState])
+  }, [updateMentionState])
 
   const handleClick = useCallback(() => {
     const ta = textareaRef.current
@@ -126,8 +132,8 @@ export default function MentionTextarea() {
     // Use native DOM API so the edit is recorded in the browser undo stack
     ta.focus()
     ta.setRangeText(mention, atIndex, caretPos, 'end')
-    // Dispatch input event so React's onChange picks up the new value
-    ta.dispatchEvent(new Event('input', { bubbles: true }))
+    // Sync React state from the DOM value
+    setValue(ta.value)
     setMentionState(null)
   }, [mentionState])
 
@@ -195,8 +201,8 @@ export default function MentionTextarea() {
         <textarea
           ref={textareaRef}
           className="mention-textarea"
-          value={value}
-          onChange={handleInput}
+          defaultValue=""
+          onInput={syncFromDOM}
           onKeyDown={handleKeyDown}
           onKeyUp={handleKeyUp}
           onClick={handleClick}
